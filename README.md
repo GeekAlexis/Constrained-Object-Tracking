@@ -4,6 +4,7 @@
 <img src="assets/dense_demo.gif" width="400"/> <img src="assets/aerial_demo.gif" width="400"/>
 
 ## News
+  - (2021.8.30) Add demos
   - (2021.8.17) Support multi-class tracking
   - (2021.7.4) Support yolov4-p5 and yolov4-p6
   - (2021.2.13) Support Scaled-YOLOv4 (i.e. yolov4-csp/yolov4x-mish/yolov4-csp-swish)
@@ -156,7 +157,7 @@ FastMOT also supports multi-class tracking. It is recommended to train a ReID ne
     Note anchors may not follow the same order in the Darknet cfg file. You need to mask out the anchors for each yolo layer using the indices in `mask` in Darknet cfg.
     Unlike YOLOv4, the anchors are usually in reverse for YOLOv3 and YOLOv3/v4-tiny
 2. Set class labels to your object classes with `fastmot.models.set_label_map`
-3. Modify cfg/mot.json: set `model` in `yolo_detector_cfg` to the added Python class name and set `class_ids` of interest. You may want to play with `conf_thresh` based on model performance
+3. Modify cfg/mot.json: set `model` in `yolo_detector_cfg` to the added Python class name and set `class_ids` of interest. You may want to play with `conf_thresh` based on model performance.
 ### Add custom ReID
 1. Subclass `fastmot.models.ReID` like here: https://github.com/GeekAlexis/FastMOT/blob/32c217a7d289f15a3bb0c1820982df947c82a650/fastmot/models/reid.py#L50-L55
     ```
@@ -173,7 +174,228 @@ FastMOT also supports multi-class tracking. It is recommended to train a ReID ne
     METRIC : {'euclidean', 'cosine'}
         Distance metric used to match features.
     ```
+    
 2. Modify cfg/mot.json: set `model` in `feature_extractor_cfgs` to the added Python class name. For more than one class, add more feature extractor configurations to the list `feature_extractor_cfgs`. You may want to play with `max_assoc_cost` and `max_reid_cost` based on model performance
+
+ ## Demos
+
+### Person
+
+1. Download any video from [MOTChallenge website](https://motchallenge.net/) for example,
+    ```bash
+    wget https://motchallenge.net/sequenceVideos/MOT16-07-raw.webm -P ./videos/
+    ```
+2. Inside docker run the following command
+    ```bash
+    python3 app.py -i ./videos/MOT16-07-raw.webm -c ./cfg/mot.json -s -v -m
+    ```
+
+
+### Cars
+
+Here we will demonstrate the steps outlined above for extending fastmot to track custom classes (e.g. car in this case). We will use [YOLOv4](https://github.com/AlexeyAB/darknet#pre-trained-models) model for detecting cars and [VeRIWild](https://github.com/JDAI-CV/fast-reid/blob/master/MODEL_ZOO.md#veri-wild-baseline) model as feature extractor. Download any video with cars (for ex: [cars](https://github.com/theAIGuysCode/yolov4-deepsort/blob/master/data/video/cars.mp4)).
+
+1. Convert YOLOv4 model to onnx using `scripts/yolo2onnx.py`. After installing the recommended version of `onnx==1.4.1`, download the [weights](https://github.com/AlexeyAB/darknet/releases/download/darknet_yolo_v3_optimal/yolov4.weights) and [cfg](https://raw.githubusercontent.com/AlexeyAB/darknet/master/cfg/yolov4.cfg) corresponding to YOLOv4 model. 
+    [Optional step] Test YOLOv4 weights and cfg on the input video.
+
+2. Convert YOLOv4 weights and cfg to onnx model.
+    ```bash
+    ./scripts/yolo2onnx.py --config yolov4.cfg --weights yolov4.weights
+    ```
+    
+3. Replace the `_label_map` inside `fastmot/models/label.py` with [YOLOv4 class mapping](https://github.com/AlexeyAB/darknet/blob/master/data/coco.names).
+
+    <details>
+        <summary>YOLOv4 class mapping</summary> <br/>
+        <pre>
+    _label_map = (
+        'person',
+        'bicycle',
+        'car',
+        'motorbike',
+        'aeroplane',
+        'bus',
+        'train',
+        'truck',
+        'boat',
+        'traffic light',
+        'fire hydrant',
+        'stop sign',
+        'parking meter',
+        'bench',
+        'bird',
+        'cat',
+        'dog',
+        'horse',
+        'sheep',
+        'cow',
+        'elephant',
+        'bear',
+        'zebra',
+        'giraffe',
+        'backpack',
+        'umbrella',
+        'handbag',
+        'tie',
+        'suitcase',
+        'frisbee',
+        'skis',
+        'snowboard',
+        'sports ball',
+        'kite',
+        'baseball bat',
+        'baseball glove',
+        'skateboard',
+        'surfboard',
+        'tennis racket',
+        'bottle',
+        'wine glass',
+        'cup',
+        'fork',
+        'knife',
+        'spoon',
+        'bowl',
+        'banana',
+        'apple',
+        'sandwich',
+        'orange',
+        'broccoli',
+        'carrot',
+        'hot dog',
+        'pizza',
+        'donut',
+        'cake',
+        'chair',
+        'sofa',
+        'pottedplant',
+        'bed',
+        'diningtable',
+        'toilet',
+        'tvmonitor',
+        'laptop',
+        'mouse',
+        'remote',
+        'keyboard',
+        'cell phone',
+        'microwave',
+        'oven',
+        'toaster',
+        'sink',
+        'refrigerator',
+        'book',
+        'clock',
+        'vase',
+        'scissors',
+        'teddy bear',
+        'hair drier',
+        'toothbrush',
+    )
+    </pre>
+    </details>
+    
+4. Add following code to `fastmot/models/yolo.py`
+    
+    ```python
+    class YOLOv4Original(YOLO):
+        ENGINE_PATH = Path(__file__).parent / 'yolov4.trt'
+        MODEL_PATH = Path(__file__).parent /  'yolov4.onnx'
+        NUM_CLASSES = 80
+        INPUT_SHAPE = (3, 608, 608)
+        LAYER_FACTORS = [8, 16, 32]
+        SCALES = [1.2, 1.1, 1.05]
+        ANCHORS = [[12,16, 19,36, 40,28],
+                   [36,75, 76,55, 72,146],
+                   [142,110, 192,243, 459,401]]
+    ```
+    
+    
+    [Optional step] Cross verify the values from [cfg](https://raw.githubusercontent.com/AlexeyAB/darknet/master/cfg/yolov4.cfg) with the above class.
+    
+5. Add the following classes in `fastmot/models/reid.py`. These ReID models will be used as feature extractor.
+
+    ```python
+    class VERIWild(ReID):
+    	"""Model trained on VERIWild dataset using fastreid library"""
+    	ENGINE_PATH = Path(__file__).parent / 'veriwild_r50ibn.trt'
+    	MODEL_PATH = Path(__file__).parent / 'veriwild_r50ibn.onnx'
+    	INPUT_SHAPE = (3, 256, 256)
+    	OUTPUT_LAYOUT = 2048
+    	METRIC = 'cosine'
+    
+    class VehicleID(ReID)
+    	"""Model trained on VehicleID dataset using fastreid library"""
+    	ENGINE_PATH = Path(__file__).parent / 'vehicleid_r50ibn.trt'
+    	MODEL_PATH = Path(__file__).parent / 'vehicleid_r50ibn.onnx'
+    	INPUT_SHAPE = (3, 256, 256)
+    	OUTPUT_LAYOUT = 2048
+    	METRIC = 'cosine'
+    ```
+    Download the [pytorch models](https://github.com/JDAI-CV/fast-reid/blob/ced654431be28492066f4746d23c1ff89d26acbd/MODEL_ZOO.md) from fastreid library and [convert to onnx](https://github.com/JDAI-CV/fast-reid/tree/ced654431be28492066f4746d23c1ff89d26acbd/tools/deploy#onnx-convert) or directly downloading the converted models: [veriwild_r50ibn.onnx](https://drive.google.com/uc?id=1Nyxj_muAKwQOrdk6ftdcq0e0di51nTi-) and [vehicleid_r50ibn.onnx](https://drive.google.com/uc?id=1nk5GqReWBZ4xWoUgNdjqp8fusD8wT9ch). Move the onnx model to `fastmot/models` directory.
+
+    
+
+    [Optional step] [Verify](https://github.com/JDAI-CV/fast-reid/tree/ced654431be28492066f4746d23c1ff89d26acbd/tools/deploy#onnx-convert) the onnx and pytorch model provide same output and visualize the onnx model in [netron](netron.app/).
+
+    
+
+6. After visualizing the onnx model in [netron.app](netron.app/), the model already performs normalization step. Replace the lines starting with `out[]` in `fastmot/feature_extractor.py` with the following
+    ```python
+    # Normalize according to fastreid model
+    out[0, ...] = chw[0, ...]
+    out[1, ...] = chw[1, ...]
+    out[2, ...] = chw[2, ...]
+    ```
+
+7. Inside docker run the following command
+
+    VERIWild reid model
+
+    ```bash
+    python3 app.py -i ./videos/cars.mp4 -c ./cfg/veriwild.json -s -v -m
+    ```
+    VehicleID reid model
+
+    - Replace `VERIWild` in `cfg/veriwild.json` to `VehicleID` to run VehicleID as ReID feature extractor.
+
+### Vehicles
+
+We can easily extend the example of cars to track vehicles (i.e. cars, motorbike, bicycle, trucks and bus combined). We will use all steps outlined in [Cars](#cars) demo with some modifications. Download any video containing vehicles (for ex: [vehicles](https://drive.google.com/file/d/1A7LCl8B2eDA63LJdve_7MAiWO7jcr4rj/view?usp=sharing)).
+
+1. Tying all different classes of interest (for ex: cars and trucks) from YOLOv4 to one class. The mapping of classes in YOLOv4 for cars:2 and trucks:7. Add following lines which combine `cars` and `trucks` in one `cars` classes  after line no: 363 in `fastmot.detector.py`.
+    ```python
+        if label == 7: # trucks
+            label = 2  # cars
+    ```
+    
+2. Modify `cfg/veriwild.json`. Detect and track cars & trucks by modifying `class_ids` and `feature_extractor_cfgs`.
+    ```bash
+        "class_ids": [ 2, 7], 
+            "feature_extractor_cfgs": [
+                {
+                    "model": "VERIWild",
+                    "batch_size": 16
+                },
+                {
+                    "model": "VERIWild",
+                    "batch_size": 16
+                }
+            ],
+    ```
+
+3. Inside docker run the following command
+
+    VERIWild reid model
+
+    ```bash
+    python3 app.py -i ./videos/nv.mp4 -c ./cfg/veriwild.json -s -v -m
+    ```
+    
+    VehicleID reid model
+    
+    - Replace `VERIWild` in `cfg/veriwild.json` to `VehicleID` to run VehicleID as ReID feature extractor.
+    
+    You may want to play with different parameters based on model performance.
+
 
  ## Citation
  If you find this repo useful in your project or research, please star and consider citing it:
@@ -188,4 +410,5 @@ FastMOT also supports multi-class tracking. It is recommended to train a ReID ne
   doi          = {10.5281/zenodo.4294717},
   url          = {https://doi.org/10.5281/zenodo.4294717}
 }
-```
+ ```
+

@@ -1,0 +1,101 @@
+{   
+    "resize_to": [1280, 720],
+
+    "stream_cfg": {
+        "resolution": [1920, 1080],
+        "frame_rate": 30,
+        "buffer_size": 10
+    },
+
+    "mot_cfg": {
+        "detector_type": "YOLO",
+        "detector_frame_skip": 1,
+        "class_ids": [2],
+
+        "ssd_detector_cfg": {
+            "model": "SSDInceptionV2",
+            "tile_overlap": 0.25,
+            "tiling_grid": [4, 2],
+            "conf_thresh": 0.5,
+            "merge_thresh": 0.6,
+            "max_area": 120000
+        },
+        "yolo_detector_cfg": {
+            "model": "YOLOv4Original",
+            "conf_thresh": 0.3,
+            "nms_thresh": 0.7,
+            "max_area": 800000,
+            "min_aspect_ratio": 0.1
+        },
+        "public_detector_cfg": {
+            "sequence_path": "MOT20/train/MOT20-01",
+            "conf_thresh": 0.5,
+            "max_area": 800000
+        },
+
+        "feature_extractor_cfgs": [
+            {
+                "model": "VERIWild",
+                "batch_size": 16
+            }
+        ],
+
+        "tracker_cfg": {
+            "max_age": 20,
+            "age_penalty": 2,
+            "motion_weight": 0.2,
+            "max_assoc_cost": 0.7,
+            "max_reid_cost": 0.7,
+            "iou_thresh": 0.5,
+            "duplicate_thresh": 0.8,
+            "occlusion_thresh": 0.7,
+            "conf_thresh": 0.5,
+            "confirm_hits": 1,
+            "history_size": 50,
+
+            "kalman_filter_cfg": {
+                "std_factor_acc": 50.25,
+                "std_offset_acc": 70.5,
+                "std_factor_det": [0.08, 0.08],
+                "std_factor_klt": [0.14, 0.14],
+                "min_std_det": [4.0, 4.0],
+                "min_std_klt": [5.0, 5.0],
+                "init_pos_weight": 5,
+                "init_vel_weight": 15,
+                "vel_coupling": 0.6,
+                "vel_half_life": 5
+            },
+
+            "flow_cfg": {
+                "bg_feat_scale_factor": [0.1, 0.1],
+                "opt_flow_scale_factor": [0.5, 0.5],
+                "feat_density": 0.005,
+                "feat_dist_factor": 0.06,
+                "ransac_max_iter": 500,
+                "ransac_conf": 0.99,
+                "max_error": 100,
+                "inlier_thresh": 4,
+                "bg_feat_thresh": 10,
+                "obj_feat_params": {
+                    "maxCorners": 1000,
+                    "qualityLevel": 0.06,
+                    "blockSize": 3
+                },
+                "opt_flow_params": {
+                    "winSize": [5, 5],
+                    "maxLevel": 5,
+                    "criteria": [3, 10, 0.03]
+                }
+            }
+        },
+
+        "visualizer_cfg": {
+            "draw_detections": false,
+            "draw_confidence": false,
+            "draw_covariance": false,
+            "draw_klt": false,
+            "draw_obj_flow": false,
+            "draw_bg_flow": false
+        }
+    }
+}
